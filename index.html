@@ -1,55 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Cloud Memo</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
-    textarea { width: 100%; height: 150px; margin-bottom: 10px; }
-    button { padding: 10px 20px; }
-    .note { padding: 12px; border: 1px solid #aaa; margin-top: 10px; }
+    body {
+      max-width: 600px;
+      margin: 40px auto;
+      font-family: sans-serif;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 12px;
+      font-size: 16px;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 18px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .saved {
+      margin-top: 10px;
+      color: green;
+    }
   </style>
 </head>
+
 <body>
+  <h1>Cloud Memo</h1>
 
-<h2>메모 저장</h2>
-<textarea id="memo"></textarea>
-<button id="saveBtn">저장</button>
+  <textarea id="memo" placeholder="여기에 메모를 입력하세요"></textarea>
+  <br />
+  <button id="saveBtn">메모 저장하기</button>
+  <div id="status"></div>
 
-<h2>메모 목록</h2>
-<div id="notes"></div>
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js";
 
-<script>
-async function loadNotes() {
-  const res = await fetch("/api/list");
-  const json = await res.json();
+    // TODO: 여기에 본인 Supabase 프로젝트 정보 넣기
+    const SUPABASE_URL = "https://wwxufqjcobsqipobutjt.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3eHVmcWpjb2JzcWlwb2J1dGp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ0Mzg5NDksImV4cCI6MjA4MDAxNDk0OX0.t0eWuxiOdbmngo8IEYTg_XYyaC1HKhp29aKaUmSg0_4";
 
-  const notesDiv = document.getElementById("notes");
-  notesDiv.innerHTML = "";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  json.data.forEach(n => {
-    const div = document.createElement("div");
-    div.className = "note";
-    div.innerText = n.content;
-    notesDiv.appendChild(div);
-  });
-}
+    document.getElementById("saveBtn").addEventListener("click", async () => {
+      const memoText = document.getElementById("memo").value.trim();
+      const statusDiv = document.getElementById("status");
 
-document.getElementById("saveBtn").onclick = async () => {
-  const content = document.getElementById("memo").value;
+      if (!memoText) {
+        statusDiv.innerHTML = "<span style='color:red'>메모가 비어 있습니다.</span>";
+        return;
+      }
 
-  await fetch("/api/save", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content })
-  });
+      const { error } = await supabase.from("memos").insert([
+        {
+          content: memoText,
+          created_at: new Date().toISOString(),
+        }
+      ]);
 
-  document.getElementById("memo").value = "";
-  loadNotes();
-};
-
-loadNotes();
-</script>
+      if (error) {
+        statusDiv.innerHTML = "<span style='color:red'>저장 실패: " + error.message + "</span>";
+      } else {
+        statusDiv.innerHTML = "<span class='saved'>저장되었습니다!</span>";
+        document.getElementById("memo").value = "";
+      }
+    });
+  </script>
 
 </body>
 </html>
