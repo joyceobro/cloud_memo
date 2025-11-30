@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cloud Memo Viewer</title>
+<style>
+  body {
+    font-family: sans-serif;
+    padding: 20px;
+    max-width: 700px;
+    margin: auto;
+  }
+  .memo {
+    padding: 12px;
+    margin: 12px 0;
+    border-radius: 8px;
+    background: #f0f0f0;
+    cursor: pointer;
+    white-space: pre-wrap;
+  }
+  .created {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  button {
+    padding: 8px 12px;
+    margin-bottom: 20px;
+    cursor: pointer;
+  }
+  .error {
+    color: #d32f2f;
+    padding: 12px;
+    background: #ffebee;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<h2>모든 메모 보기</h2>
+<p>자동 저장된 메모들을 최신순으로 불러옵니다.</p>
+<button id="reload">새로고침</button>
+<div id="list">불러오는 중…</div>
+
+<script>
+  const WORKER_URL = "https://memo.seliscos.workers.dev";
+  
+  const listEl = document.getElementById("list");
+
+  async function load() {
+    listEl.textContent = "불러오는 중…";
+    
+    try {
+      const response = await fetch(WORKER_URL);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        listEl.innerHTML = `<div class="error">불러오기 실패: ${data.error}</div>`;
+        return;
+      }
+      
+      listEl.innerHTML = "";
+      
+      if (!data.notes || data.notes.length === 0) {
+        listEl.textContent = "저장된 메모가 없습니다.";
+        return;
+      }
+      
+      data.notes.forEach(m => {
+        const div = document.createElement("div");
+        div.className = "memo";
+        div.innerHTML = `
+          <div class="created">${new Date(m.created_at).toLocaleString('ko-KR')}</div>
+          ${escapeHtml(m.content.substring(0, 200))}${m.content.length > 200 ? "…" : ""}
+        `;
+        div.addEventListener("click", () => {
+          alert(m.content);
+        });
+        listEl.appendChild(div);
+      });
+    } catch (err) {
+      listEl.innerHTML = `<div class="error">불러오기 실패: ${err.message}</div>`;
+      console.error(err);
+    }
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  document.getElementById("reload").addEventListener("click", load);
+  load();
+</script>
+</body>
+</html>
