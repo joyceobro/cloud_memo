@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud Memo</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+<body>
+
+  <header>
+    <h1>Cloud Memo</h1>
+    <div id="auth-container">
+      <button id="login-btn">Google 로그인</button>
+      <div id="user-info" style="display: none;">
+        <span id="user-name"></span>
+        <button id="logout-btn">로그아웃</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="app-loading">로그인 정보를 확인 중입니다...</div>
+    
+    <div id="app-content" style="display: none;">
+      <h2>새 메모 작성</h2>
+      <textarea id="memo-input" placeholder="메모를 입력하세요..." rows="5"></textarea>
+      <button id="save-memo-btn">저장</button>
+      
+      <div class="divider"></div>
+      
+      <div class="memo-header">
+        <h2>내 메모 목록</h2>
+        <button id="subscribe-btn">🔔 알림 받기</button>
+      </div>
+      <div id="memo-list">
+        <!-- 메모가 여기에 동적으로 추가됩니다 -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+  
+  <!-- App Script -->
+  <script src="app.js"></script>
+
+</body>
+</html>

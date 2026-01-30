@@ -1,0 +1,10 @@
+name = "cloud-memo-worker"
+main = "index.js"
+compatibility_date = "2023-10-30"
+nodejs_compat = true
+
+[vars]
+# VAPID_PUBLIC_KEY는 여기에 직접 입력합니다.
+# 이 키는 클라이언트(브라우저)에 노출되어도 안전합니다.
+VAPID_PUBLIC_KEY = "BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc"
+
