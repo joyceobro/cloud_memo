@@ -126,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const html = memos.map(m => `
       <div class="memo" style="border-bottom: 1px solid #eee; padding: 10px 0;">
 	<div style="display: flex; justify-content: space-between; font-size: 0.8em; color: #888;">
-       	<span>👤 ${m.author_name || '알 수 없음'}</span> <span>${new Date(m.created_at).toLocaleString('ko-KR')}</span>
+       	<span> ${m.author_name || '알 수 없음'}</span> <span>${new Date(m.created_at).toLocaleString('ko-KR')}</span>
       </div>
         <div class="content" style="margin-top: 5px; white-space: pre-wrap;">${escapeHtml(m.content)}</div>
       </div>
