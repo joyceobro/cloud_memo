@@ -111,7 +111,7 @@ async function getNotes(request, env) { // request 인자 추가
 }
 
 async function saveNote(request, userId, env) {
-  const { content } = await request.json();
+  const { content, author_name } = await request.json();
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
   
   const response = await fetch(`${SUPABASE_URL}/rest/v1/notes`, {
@@ -122,7 +122,7 @@ async function saveNote(request, userId, env) {
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
-    body: JSON.stringify({ user_id: userId, content }),
+    body: JSON.stringify({ user_id: userId, content,author_name }),
   });
   
   const data = await response.json();

@@ -125,9 +125,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const html = memos.map(m => `
       <div class="memo" style="border-bottom: 1px solid #eee; padding: 10px 0;">
-        <div class="date" style="font-size: 0.8em; color: #888;">
-          ${new Date(m.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-        </div>
+	<div style="display: flex; justify-content: space-between; font-size: 0.8em; color: #888;">
+       	<span>👤 ${m.author_name || '알 수 없음'}</span> <span>${new Date(m.created_at).toLocaleString('ko-KR')}</span>
+      </div>
         <div class="content" style="margin-top: 5px; white-space: pre-wrap;">${escapeHtml(m.content)}</div>
       </div>
     `).join('');
@@ -139,10 +139,17 @@ document.addEventListener('DOMContentLoaded', () => {
   async function saveMemo() {
     const content = memoInput.value.trim();
     if (!content) return;
-    
+    // ✅ 현재 로그인한 사용자의 이름 가져오기
+    const authorName = auth.currentUser.displayName || "익명";
     saveMemoBtn.disabled = true;
     try {
-      await apiFetch('/api/notes', { method: 'POST', body: JSON.stringify({ content }) });
+      await apiFetch('/api/notes', {
+	 method: 'POST', 
+	 body: JSON.stringify({ 
+		content,
+		author_name: authorName
+  		}) 
+	});
       memoInput.value = '';
       await fetchMemos(true); // 저장 후 최신순으로 다시 불러오기
     } catch (e) {
