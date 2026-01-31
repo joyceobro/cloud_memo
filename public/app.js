@@ -182,7 +182,11 @@ async function subscribeToPush() {
 
     if (token) {
       console.log("FCM 토큰 발급 성공:", token);
-      // 서버 전송 로직...
+     // ✅ 수정된 부분: fetch 대신 apiFetch 사용
+      await apiFetch('/api/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ token: token }) // 'token'이라는 키로 전송
+      });
       alert('알림 구독 완료!');
     }
   } catch (e) {
