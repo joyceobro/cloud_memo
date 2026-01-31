@@ -119,16 +119,28 @@ async function apiFetch(path, options = {}) {
   
   return response.json();
 }
-  async function fetchMemos() {
-    try {
-      memoListDiv.innerHTML = '로딩 중...';
-      const data = await apiFetch('/api/notes');
-      renderMemos(data.notes || []);
-    } catch (error) {
-      console.error('Error fetching memos:', error);
-      memoListDiv.innerHTML = `<div class="error">메모를 불러오는데 실패했습니다: ${error.message}</div>`;
+async function fetchMemos() {
+  try {
+    memoListDiv.innerHTML = '로딩 중...';
+    const data = await apiFetch('/api/notes');
+    
+    // 콘솔에서 실제 데이터 구조 확인
+    console.log('API Response:', data);
+    
+    // 안전하게 배열 추출
+    let memos = [];
+    if (Array.isArray(data)) {
+      memos = data;
+    } else if (data && Array.isArray(data.notes)) {
+      memos = data.notes;
     }
+    
+    renderMemos(memos);
+  } catch (error) {
+    console.error('Error fetching memos:', error);
+    memoListDiv.innerHTML = `<div class="error">메모를 불러오는데 실패했습니다: ${error.message}</div>`;
   }
+}
 
   async function saveMemo() {
     const content = memoInput.value.trim();
@@ -223,4 +235,53 @@ async function apiFetch(path, options = {}) {
     }
     return outputArray;
   }
+
+async function verifyFirebaseToken(request, env) {
+  const authHeader = request.headers.get('Authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('Missing or invalid Authorization header');
+    return null;
+  }
+
+  const idToken = authHeader.substring(7);
+  
+  try {
+    const parts = idToken.split('.');
+    if (parts.length !== 3) {
+      console.log('Invalid token format');
+      return null;
+    }
+    
+    const payloadB64 = parts[1];
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    const now = Math.floor(Date.now() / 1000);
+    
+    if (payload.exp < now) {
+      console.log('Token expired');
+      return null;
+    }
+    
+    if (payload.aud !== 'soaho-5b92f') {
+      console.log('Invalid audience');
+      return null;
+    }
+    
+    if (payload.iss !== 'https://securetoken.google.com/soaho-5b92f') {
+      console.log('Invalid issuer');
+      return null;
+    }
+    
+    return payload.sub || payload.user_id;
+    
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return null;
+  }
+}
+
+
+
+
 });

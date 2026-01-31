@@ -15,27 +15,43 @@ const jsonResponse = (data, status = 200) => {
   return addCorsHeaders(response);
 };
 
+// Handle OPTIONS preflight requests
+function handleOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+}
+
 export default {
   async fetch(request, env) {
     console.log(`Request received: ${request.method} ${request.url}`);
     
     try {
-      // OPTIONS 요청 처리 (preflight)
+      // Handle OPTIONS preflight request
       if (request.method === 'OPTIONS') {
-        return handleOptions(request);
+        return handleOptions();
       }
       
       const url = new URL(request.url);
 
+      // Push notification endpoint (no auth required)
       if (url.pathname === '/api/send-push' && request.method === 'POST') {
         return sendPushNotification(request, env);
       }
       
+      // Verify authentication for other endpoints
       const userId = await verifyFirebaseToken(request, env);
       if (!userId) {
         return jsonResponse({ error: 'Invalid or missing authentication token.' }, 401);
       }
 
+      // Protected routes
       switch (url.pathname) {
         case '/api/notes':
           if (request.method === 'GET') return getNotes(userId, env);
@@ -56,9 +72,55 @@ export default {
 };
 
 // --- API Handlers ---
-async function getNotes(userId, env) { /* ... */ }
-async function saveNote(request, userId, env) { /* ... */ }
-async function saveSubscription(request, userId, env) { /* ... */ }
+async function getNotes(userId, env) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/notes?user_id=eq.${userId}&select=*&order=created_at.desc`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  });
+  const notes = await response.json();
+  return jsonResponse({ notes });
+}
+
+async function saveNote(request, userId, env) {
+  const { content } = await request.json();
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+  
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/notes`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ user_id: userId, content }),
+  });
+  
+  const data = await response.json();
+  return jsonResponse({ success: true, note: data[0] });
+}
+
+async function saveSubscription(request, userId, env) {
+  const subscription = await request.json();
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+  
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify({ user_id: userId, subscription }),
+  });
+  
+  const data = await response.json();
+  return jsonResponse({ success: true, subscription: data[0] });
+}
 
 // --- Push Notification ---
 async function sendPushNotification(request, env) {
@@ -66,14 +128,17 @@ async function sendPushNotification(request, env) {
   const { content, user_id } = record;
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
 
-  const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`,{ 
-    headers: { 
-      apikey: SUPABASE_SERVICE_KEY, 
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` 
-    } 
+  const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
   });
+  
   const subs = await subResponse.json();
-  if (!subs || !subs.length) return jsonResponse({ message: "No subscriptions found." });
+  if (!subs || !subs.length) {
+    return jsonResponse({ message: 'No subscriptions found.' });
+  }
   
   const notificationPayload = JSON.stringify({
     title: '새로운 메모!',
@@ -83,6 +148,7 @@ async function sendPushNotification(request, env) {
 
   const promises = subs.map(s => triggerPush(s.subscription, notificationPayload, env));
   await Promise.allSettled(promises);
+  
   return jsonResponse({ success: true, sentTo: subs.length });
 }
 
@@ -105,7 +171,7 @@ async function triggerPush(subscription, payload, env) {
   });
 
   if (response.status !== 201) {
-    console.error(`Failed to send push notification to ${endpoint}: ${response.status} ${response.statusText}`);
+    console.error(`Failed to send push: ${response.status}`);
   }
 }
 
@@ -124,24 +190,12 @@ async function createVapidJwt(audience, publicKey, privateKey) {
   const body = { aud: audience, exp: Math.floor(Date.now() / 1000) + (12 * 60 * 60), sub: 'mailto:test@example.com' };
 
   const unsignedToken = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(body))}`;
-  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: {name: 'SHA-256'} }, importedKey, new TextEncoder().encode(unsignedToken));
+  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: { name: 'SHA-256' } }, importedKey, new TextEncoder().encode(unsignedToken));
   
   return `${unsignedToken}.${base64UrlEncode(signature)}`;
 }
 
-// --- CORS & Helpers ---
-function handleOptions(request) {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
-}
-
+// --- Helpers ---
 function base64UrlEncode(data) {
   if (typeof data === 'string') data = new TextEncoder().encode(data);
   return btoa(String.fromCharCode.apply(null, data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -159,4 +213,47 @@ function base64UrlDecode(base64UrlString) {
 }
 
 // --- Auth Verification ---
-async function verifyFirebaseToken(request, env) { /* ... */ }
+async function verifyFirebaseToken(request, env) {
+  const authHeader = request.headers.get('Authorization');
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('Missing or invalid Authorization header');
+    return null;
+  }
+
+  const idToken = authHeader.substring(7);
+  
+  try {
+    const parts = idToken.split('.');
+    if (parts.length !== 3) {
+      console.log('Invalid token format');
+      return null;
+    }
+    
+    const payloadB64 = parts[1];
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    const now = Math.floor(Date.now() / 1000);
+    
+    if (payload.exp < now) {
+      console.log('Token expired');
+      return null;
+    }
+    
+    if (payload.aud !== 'soaho-5b92f') {
+      console.log('Invalid audience');
+      return null;
+    }
+    
+    if (payload.iss !== 'https://securetoken.google.com/soaho-5b92f') {
+      console.log('Invalid issuer');
+      return null;
+    }
+    
+    return payload.sub || payload.user_id;
+    
+  } catch (error) {
+    console.error('Token verification error:', error);
+    return null;
+  }
+}
