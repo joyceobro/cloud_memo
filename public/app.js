@@ -147,32 +147,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function subscribeToPush() {
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        alert('알림 권한이 거부되었습니다.');
-        return;
-      }
-
-      // VAPID_PUBLIC_KEY 변수 사용 (따옴표 처리된 값)
-      const token = await getToken(messaging, { vapidKey: VAPID_PUBLIC_KEY });
-
-      if (token) {
-        await apiFetch('/api/subscribe', {
-          method: 'POST',
-          body: JSON.stringify({ token }),
-        });
-        alert('알림 구독 완료!');
-        updateSubscriptionStatus();
-      } else {
-        alert('토큰을 가져오지 못했습니다.');
-      }
-    } catch (e) {
-      console.error('구독 에러:', e);
-      alert('알림 구독 중 오류가 발생했습니다.');
+async function subscribeToPush() {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('알림 권한이 필요합니다.');
+      return;
     }
+
+    // 1. 서비스 워커 등록 상태 확인
+    let registration = await navigator.serviceWorker.getRegistration();
+
+    // 2. 만약 등록된 게 없다면 기다리거나 새로 등록
+    if (!registration) {
+      console.log("서비스 워커 등록 중...");
+      registration = await navigator.serviceWorker.register('/sw.js');
+    }
+
+    // 3. 핵심: 서비스 워커가 'active' 상태가 될 때까지 대기
+    // 등록은 됐지만 활성화되지 않았을 때 발생하는 AbortError 방지
+    while (!registration.active) {
+      console.log("서비스 워커 활성화 대기 중...");
+      await new Promise(resolve => setTimeout(resolve, 500)); // 0.5초마다 확인
+      registration = await navigator.serviceWorker.getRegistration();
+    }
+
+    console.log("서비스 워커 준비 완료:", registration.active.state);
+
+    // 4. 활성화된 registration을 사용하여 토큰 가져오기
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_PUBLIC_KEY,
+      serviceWorkerRegistration: registration // 명시적으로 등록 객체 전달
+    });
+
+    if (token) {
+      console.log("FCM 토큰 발급 성공:", token);
+      // 서버 전송 로직...
+      alert('알림 구독 완료!');
+    }
+  } catch (e) {
+    console.error('구독 에러:', e);
+    // 여기서 AbortError가 나면 서비스 워커 파일 내부 로직 문제일 수도 있습니다.
   }
+}
 
   async function updateSubscriptionStatus() {
     try {
