@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Service Worker Registration ---
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js') // sw.js 파일이 실제 경로에 있어야 함
+    navigator.serviceWorker.register('/firebase-messaging-sw.js') // sw.js 파일이 실제 경로에 있어야 함
       .then(reg => console.log('Service worker registered'))
       .catch(err => console.error('Service worker registration failed:', err));
     
