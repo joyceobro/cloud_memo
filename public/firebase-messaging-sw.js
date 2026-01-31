@@ -1,6 +1,6 @@
 // public/sw.js
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-sw.js');
-importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-sw.js');
+importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js');
+importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js');
 
 // 앱과 동일한 설정값 (반드시 동일해야 함!)
 firebase.initializeApp({
