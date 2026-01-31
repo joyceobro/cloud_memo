@@ -189,10 +189,11 @@ async function saveMemo() {
       console.log('구독 생성 완료:', subscription);
       
       console.log('4. 서버로 전송 중...');
-      const result = await apiFetch('/api/subscribe', {
-        method: 'POST',
-        body: JSON.stringify(subscription)
-      });
+      const result = await fetch('/api/subscribe', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ token }),
+});
       console.log('서버 응답:', result);
 
       alert('알림 구독이 완료되었습니다!');

@@ -105,141 +105,99 @@ async function saveNote(request, userId, env) {
 }
 
 async function saveSubscription(request, userId, env) {
-  const subscription = await request.json();
+  const { token } = await request.json(); // 🔥 명확히 token
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
-  
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    body: JSON.stringify({ user_id: userId, subscription }),
-  });
-  
+
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/subscriptions`,
+    {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates', // 중복 방지
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        subscription: token, // ✅ FCM token 저장
+      }),
+    }
+  );
+
   const data = await response.json();
-  return jsonResponse({ success: true, subscription: data[0] });
+  return jsonResponse({ success: true, token: data[0] });
 }
 
 // --- Push Notification ---
 async function sendPushNotification(request, env) {
   try {
     const payload = await request.json();
-    console.log('Webhook payload:', payload);
-    
-    // Supabase webhook 형식 처리
     const { record } = payload;
-    
-    if (!record || !record.content || !record.user_id) {
-      console.error('Invalid payload:', payload);
-      return jsonResponse({ error: 'Invalid payload structure' }, 400);
+
+    if (!record?.content || !record?.user_id) {
+      return jsonResponse({ error: 'Invalid payload' }, 400);
     }
-    
+
     const { content, user_id } = record;
     const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
 
-    console.log(`Sending push for user: ${user_id}`);
+    // 1️⃣ token 조회
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`,
+      {
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        },
+      }
+    );
 
-    const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`, {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    });
-    
-    const subs = await subResponse.json();
-    console.log('Found subscriptions:', subs.length);
-    
-    if (!subs || !subs.length) {
-      return jsonResponse({ message: 'No subscriptions found.' });
+    const rows = await res.json();
+    const tokens = rows.map(r => r.subscription);
+
+    if (!tokens.length) {
+      return jsonResponse({ message: 'No tokens' });
     }
-    
-    const notificationPayload = JSON.stringify({
+
+    // 2️⃣ FCM 전송
+    await sendFcm(tokens, {
       title: '새로운 메모!',
-      body: content.substring(0, 100),
-      url: '/',
-    });
+      body: content.slice(0, 100),
+    }, env);
 
-    const promises = subs.map(s => triggerPush(s.subscription, notificationPayload, env));
-    await Promise.allSettled(promises);
-    
-    console.log(`Push sent to ${subs.length} subscribers`);
-    return jsonResponse({ success: true, sentTo: subs.length });
-    
-  } catch (error) {
-    console.error('sendPushNotification error:', error);
-    return jsonResponse({ error: error.message }, 500);
+    return jsonResponse({ success: true, sentTo: tokens.length });
+
+  } catch (e) {
+    console.error(e);
+    return jsonResponse({ error: e.message }, 500);
   }
 }
 
-async function triggerPush(subscription, payload, env) {
-  const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY } = env;
-  const { endpoint } = subscription;
-  const audience = new URL(endpoint).origin;
+async function sendFcm(tokens, notification, env) {
+  const accessToken = await getFirebaseAccessToken(env);
 
-  console.log('Triggering push to:', endpoint);
-
-  const vapidJwt = await createVapidJwt(audience, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'TTL': '60',
-      'Content-Length': payload.length.toString(),
-      'Content-Type': 'application/octet-stream',
-      'Authorization': `WebPush ${vapidJwt}`,
-    },
-    body: payload,
-  });
-
-  console.log(`Push response: ${response.status} ${response.statusText}`);
-
-  if (response.status !== 201) {
-    const text = await response.text();
-    console.error(`Failed to send push to ${endpoint}: ${response.status} ${text}`);
-  } else {
-    console.log('✅ Push sent successfully!');
+  for (const token of tokens) {
+    await fetch(
+      `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: {
+            token,
+            notification,
+          },
+        }),
+      }
+    );
   }
 }
 
-async function createVapidJwt(audience, publicKey, privateKey) {
-  const jwk = {
-    kty: 'EC',
-    crv: 'P-256',
-    x: base64UrlDecode(publicKey).slice(1, 33),
-    y: base64UrlDecode(publicKey).slice(33, 65),
-    d: base64UrlDecode(privateKey),
-  };
 
-  const importedKey = await crypto.subtle.importKey('jwk', jwk, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']);
-
-  const header = { typ: 'JWT', alg: 'ES256' };
-  const body = { aud: audience, exp: Math.floor(Date.now() / 1000) + (12 * 60 * 60), sub: 'mailto:test@example.com' };
-
-  const unsignedToken = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(body))}`;
-  const signature = await crypto.subtle.sign({ name: 'ECDSA', hash: { name: 'SHA-256' } }, importedKey, new TextEncoder().encode(unsignedToken));
-  
-  return `${unsignedToken}.${base64UrlEncode(signature)}`;
-}
-
-// --- Helpers ---
-function base64UrlEncode(data) {
-  if (typeof data === 'string') data = new TextEncoder().encode(data);
-  return btoa(String.fromCharCode.apply(null, data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function base64UrlDecode(base64UrlString) {
-  const padding = '='.repeat((4 - (base64UrlString.length % 4)) % 4);
-  const base64 = (base64UrlString + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 // --- Auth Verification ---
 async function verifyFirebaseToken(request, env) {
