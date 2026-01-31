@@ -54,7 +54,7 @@ export default {
       // Protected routes
       switch (url.pathname) {
         case '/api/notes':
-          if (request.method === 'GET') return getNotes(userId, env);
+          if (request.method === 'GET') return getNotes(request, env);
           if (request.method === 'POST') return saveNote(request, userId, env);
           break;
         case '/api/subscribe':
@@ -72,19 +72,40 @@ export default {
 };
 
 // --- API Handlers ---
-async function getNotes(userId, env) {
+
+async function getNotes(request, env) { // request 인자 추가
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
   
-  // user_id 필터 제거 - 모든 메모 가져오기
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/notes?select=*&order=created_at.desc`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-    },
-  });
+  // 1. URL에서 page 파라미터 추출 (기본값 1)
+  const url = new URL(request.url);
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 15;
+  
+  // 2. Range 계산 (0부터 시작)
+  // page 1 -> 0 to 14
+  // page 2 -> 15 to 29
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  // 3. Supabase 호출
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/notes?select=*&order=created_at.desc`, 
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        // ✅ 핵심: 필요한 범위만 요청
+        'Range': `${from}-${to}`
+      },
+    }
+  );
+
   const notes = await response.json();
-  return jsonResponse({ notes });
+  
+  // 4. 응답 반환
+  return jsonResponse({ notes, page });
 }
+
 async function saveNote(request, userId, env) {
   const { content } = await request.json();
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
