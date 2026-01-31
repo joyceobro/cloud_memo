@@ -170,18 +170,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function updateSubscriptionStatus() {
-    try {
-      const { subscribed } = await apiFetch('/api/subscription-status');
-      if (subscribed) {
-        subscribeBtn.disabled = true;
-        subscribeBtn.innerText = '🔔 알림 구독 중';
-        subscribeBtn.style.backgroundColor = '#ccc';
-      }
-    } catch (e) {
-      console.log("구독 상태 확인 실패");
+async function updateSubscriptionStatus() {
+  try {
+    // 1. 서버에 이 사용자의 구독 여부 확인
+    const data = await apiFetch('/api/subscription-status');
+    
+    // 2. 서버에서 subscribed: true를 보내준 경우에만 버튼을 잠금
+    if (data && data.subscribed) {
+      subscribeBtn.disabled = true;
+      subscribeBtn.innerText = '🔔 알림 구독 중';
+      subscribeBtn.style.backgroundColor = '#ccc';
+    } else {
+      // 3. 구독 기록이 없으면 다시 활성화
+      subscribeBtn.disabled = false;
+      subscribeBtn.innerText = '🔔 알림 받기';
+      subscribeBtn.style.backgroundColor = '';
     }
+  } catch (e) {
+    console.error("구독 상태 확인 실패:", e);
+    // 에러 발생 시 기본값은 '알림 받기'로 유지
   }
+}
 
   function escapeHtml(text) {
     const div = document.createElement('div');

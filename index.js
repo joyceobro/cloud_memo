@@ -52,15 +52,19 @@ export default {
       }
 
       // Protected routes
-      switch (url.pathname) {
-        case '/api/notes':
-          if (request.method === 'GET') return getNotes(request, env);
-          if (request.method === 'POST') return saveNote(request, userId, env);
-          break;
-        case '/api/subscribe':
-          if (request.method === 'POST') return saveSubscription(request, userId, env);
-          break;
-      }
+switch (url.pathname) {
+  case '/api/notes':
+    if (request.method === 'GET') return getNotes(request, env);
+    if (request.method === 'POST') return saveNote(request, userId, env);
+    break;
+  case '/api/subscribe':
+    if (request.method === 'POST') return saveSubscription(request, userId, env);
+    break;
+  // ✅ 아래 내용을 추가하세요
+  case '/api/subscription-status':
+    if (request.method === 'GET') return getSubscriptionStatus(userId, env);
+    break;
+}
       
       return jsonResponse({ error: 'Not Found' }, 404);
 
@@ -347,5 +351,27 @@ async function verifyFirebaseToken(request, env) {
     console.error('Token verification error:', error);
     return null;
   }
+}
+
+// --- 구독 상태 확인 핸들러 ---
+async function getSubscriptionStatus(userId, env) {
+  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/subscriptions?select=subscription&user_id=eq.${userId}`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    }
+  );
+
+  const data = await response.json();
+  
+  // 데이터가 존재하면 구독 중인 것으로 간주
+  const isSubscribed = Array.isArray(data) && data.length > 0;
+
+  return jsonResponse({ subscribed: isSubscribed });
 }
 
