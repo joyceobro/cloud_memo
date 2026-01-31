@@ -1,4 +1,5 @@
-// ... (Firebase 임포트 및 초기화 부분은 기존과 동일) ...
+// firebase-auth.js 임포트 부분에 'onAuthStateChanged'가 있는지 꼭 확인!
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- Global State ---
