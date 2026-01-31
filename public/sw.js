@@ -1,43 +1,35 @@
 // public/sw.js
 
 self.addEventListener("push", (event) => {
-  if (!event.data) {
-    console.error("Push event but no data");
-    return;
+  console.log("🔔 [SW] Push received");
+
+  let data = { title: "새 메모", body: "메모가 도착했습니다!" };
+
+  if (event.data) {
+    try {
+      data = event.data.json();
+      console.log("📦 [SW] Payload:", data);
+    } catch (e) {
+      console.error("❌ JSON 파싱 에러:", e);
+      // 데이터가 JSON이 아니면 그냥 텍스트로라도 보여줌
+      data = { title: "새 메모", body: event.data.text() };
+    }
   }
 
-  console.log("Push received");
-
-  const data = event.data.json();
-  const title = data.title || "Cloud Memo";
-
-  const options = {
+  // 알림 띄우기 (이 코드가 실행되어야 배너가 뜸)
+  const promiseChain = self.registration.showNotification(data.title, {
     body: data.body,
     icon: "/icons/icon-192x192.png",
-    badge: "/icons/icon-96x96.png",
-    data: {
-      url: data.url || "/",
-    },
-  };
+    badge: "/icons/icon-96x96.png"
+  });
 
-  const showNotificationPromise =
-    self.registration.showNotification(title, options);
+  // 앱 화면에 새로고침 신호 보내기
+  const messageChain = self.clients.matchAll({ type: "window" }).then(clients => {
+    clients.forEach(client => client.postMessage({ type: "new-memo-received" }));
+  });
 
-  const notifyClientsPromise =
-    self.clients.matchAll({
-      type: "window",
-      includeUncontrolled: true,
-    }).then((clientList) => {
-      clientList.forEach((client) => {
-        client.postMessage({ type: "new-memo-received" });
-      });
-    });
-
-  event.waitUntil(
-    Promise.all([showNotificationPromise, notifyClientsPromise])
-  );
+  event.waitUntil(Promise.all([promiseChain, messageChain]));
 });
-
 
 self.addEventListener("notificationclick", (event) => {
   // 알림창 닫기

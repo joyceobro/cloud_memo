@@ -179,21 +179,28 @@ async function triggerPush(subscription, payload, env) {
   const { endpoint } = subscription;
   const audience = new URL(endpoint).origin;
 
+  console.log('Triggering push to:', endpoint);
+
   const vapidJwt = await createVapidJwt(audience, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'TTL': '60',
-      'Content-Length': payload.length,
+      'Content-Length': payload.length.toString(),
       'Content-Type': 'application/octet-stream',
       'Authorization': `WebPush ${vapidJwt}`,
     },
     body: payload,
   });
 
+  console.log(`Push response: ${response.status} ${response.statusText}`);
+
   if (response.status !== 201) {
-    console.error(`Failed to send push: ${response.status}`);
+    const text = await response.text();
+    console.error(`Failed to send push to ${endpoint}: ${response.status} ${text}`);
+  } else {
+    console.log('✅ Push sent successfully!');
   }
 }
 
