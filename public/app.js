@@ -1,23 +1,28 @@
-import { getMessaging, getToken } from "firebase/messaging";
+// 1. 최상단에 모듈 임포트 (반드시 블록 밖에 위치)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging.js";
+
+// --- Configuration ---
+const firebaseConfig = {
+  apiKey: "AIzaSyAAqorZd78VjeaS7LxA3DykrR-zjb2jf6E",
+  authDomain: "soaho-5b92f.firebaseapp.com",
+  projectId: "soaho-5b92f",
+  storageBucket: "soaho-5b92f.firebasestorage.app",
+  messagingSenderId: "655094826656",
+  appId: "1:655094826656:web:503233d31c9ca8c2f5abc5",
+};
+
+const VAPID_PUBLIC_KEY = "BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc";
+const WORKER_URL = "https://cloud-memo-worker.seliscos.workers.dev";
+
+// --- Firebase Initialization ---
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const messaging = getMessaging(app);
+const googleProvider = new GoogleAuthProvider();
+
 document.addEventListener('DOMContentLoaded', () => {
-
-  // =================================================================
-  // == 1. CONFIGURATION: 이 부분을 자신의 Firebase 설정으로 바꾸세요 ==
-  // =================================================================
-  const firebaseConfig = {
-    apiKey: "AIzaSyAAqorZd78VjeaS7LxA3DykrR-zjb2jf6E",
-    authDomain: "soaho-5b92f.firebaseapp.com",
-    projectId: "soaho-5b92f",
-    storageBucket: "soaho-5b92f.firebasestorage.app",
-    messagingSenderId: "655094826656",
-    appId: "1:655094826656:web:503233d31c9ca8c2f5abc5",
-  };
-  
-  const VAPID_PUBLIC_KEY = "BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc";
-  const WORKER_URL = "https://cloud-memo-worker.seliscos.workers.dev"; // 본인의 Worker URL로 변경
-  // =================================================================
-
-
   // --- Global State ---
   let currentUser = null;
   let idToken = null;
@@ -34,36 +39,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const memoListDiv = document.getElementById('memo-list');
   const subscribeBtn = document.getElementById('subscribe-btn');
 
-  // --- Firebase Initialization ---
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const googleProvider = new firebase.auth.GoogleAuthProvider();
-
-  // --- Service Worker & Push ---
+  // --- Service Worker Registration ---
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => console.log('Service worker registered'))
-        .catch(err => console.error('Service worker registration failed: ', err));
-    });
+    navigator.serviceWorker.register('/sw.js') // sw.js 파일이 실제 경로에 있어야 함
+      .then(reg => console.log('Service worker registered'))
+      .catch(err => console.error('Service worker registration failed:', err));
     
-    // Listen for messages from the service worker
     navigator.serviceWorker.addEventListener('message', event => {
-        if (event.data && event.data.type === 'new-memo-received') {
-            console.log('New memo received from push, reloading list.');
-            fetchMemos();
-        }
+      if (event.data && event.data.type === 'new-memo-received') {
+        fetchMemos();
+      }
     });
   }
-  
-  subscribeBtn.addEventListener('click', subscribeToPush);
-
 
   // --- Auth State Change ---
-  auth.onAuthStateChanged(async (user) => {
-    appLoadingDiv.style.display = 'none';
+  onAuthStateChanged(auth, async (user) => {
+    // 여기서 로딩 화면을 무조건 끕니다.
+    if (appLoadingDiv) appLoadingDiv.style.display = 'none';
+
     if (user) {
-      // User is signed in
       currentUser = user;
       idToken = await user.getIdToken();
       
@@ -75,10 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
       fetchMemos();
       updateSubscriptionStatus();
     } else {
-      // User is signed out
       currentUser = null;
       idToken = null;
-
       userInfoDiv.style.display = 'none';
       loginBtn.style.display = 'block';
       appContentDiv.style.display = 'none';
@@ -88,133 +80,112 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Event Listeners ---
   loginBtn.addEventListener('click', () => {
-    auth.signInWithPopup(googleProvider).catch(error => {
+    signInWithPopup(auth, googleProvider).catch(error => {
       console.error("Login failed:", error);
     });
   });
 
   logoutBtn.addEventListener('click', () => {
-    auth.signOut();
+    signOut(auth);
   });
 
   saveMemoBtn.addEventListener('click', saveMemo);
+  subscribeBtn.addEventListener('click', subscribeToPush);
 
   // --- API Functions ---
-async function apiFetch(path, options = {}) {
-  if (!idToken) throw new Error("Authentication token not available.");
-  
-  const defaultHeaders = {
-    'Authorization': `Bearer ${idToken}`,
-    'Content-Type': 'application/json'
-  };
-  
-  const response = await fetch(`${WORKER_URL}${path}`, {  // 여기 수정!
-    ...options,
-    headers: { ...defaultHeaders, ...options.headers }
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
-}
-async function fetchMemos() {
-  try {
-    memoListDiv.innerHTML = '로딩 중...';
-    const data = await apiFetch('/api/notes');
+  async function apiFetch(path, options = {}) {
+    if (!idToken) throw new Error("인증 토큰이 없습니다.");
     
-    // 콘솔에서 실제 데이터 구조 확인
-    console.log('API Response:', data);
+    const defaultHeaders = {
+      'Authorization': `Bearer ${idToken}`,
+      'Content-Type': 'application/json'
+    };
     
-    // 안전하게 배열 추출
-    let memos = [];
-    if (Array.isArray(data)) {
-      memos = data;
-    } else if (data && Array.isArray(data.notes)) {
-      memos = data.notes;
-    }
-    
-    renderMemos(memos);
-  } catch (error) {
-    console.error('Error fetching memos:', error);
-    memoListDiv.innerHTML = `<div class="error">메모를 불러오는데 실패했습니다: ${error.message}</div>`;
-  }
-}
-
-async function saveMemo() {
-  const content = memoInput.value.trim();
-  if (!content) return;
-
-  saveMemoBtn.disabled = true;
-  saveMemoBtn.textContent = '저장 중...';
-
-  try {
-    await apiFetch('/api/notes', {
-      method: 'POST',
-      body: JSON.stringify({ content })
+    const response = await fetch(`${WORKER_URL}${path}`, {
+      ...options,
+      headers: { ...defaultHeaders, ...options.headers }
     });
-    memoInput.value = '';
     
-    // 메모 저장 후 즉시 목록 새로고침 추가!
-    await fetchMemos();
-    
-  } catch (error) {
-    console.error('Error saving memo:', error);
-    alert(`저장 실패: ${error.message}`);
-  } finally {
-    saveMemoBtn.disabled = false;
-    saveMemoBtn.textContent = '저장';
-  }
-}
-  
-async function subscribeToPush() {
-  try {
-    // 1️⃣ 알림 권한
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') {
-      alert('알림 권한이 필요합니다.');
-      return;
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP 오류: ${response.status}`);
     }
+    return response.json();
+  }
 
-    // 2️⃣ FCM token 발급
-    const messaging = getMessaging();
-    const token = await getToken(messaging, {
-      vapidKey: BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc, // 🔥 Firebase 콘솔에서 받은 키
-    });
-
-    if (!token) {
-      alert('토큰 발급 실패');
-      return;
+  async function fetchMemos() {
+    try {
+      memoListDiv.innerHTML = '로딩 중...';
+      const data = await apiFetch('/api/notes');
+      const memos = Array.isArray(data) ? data : (data.notes || []);
+      renderMemos(memos);
+    } catch (error) {
+      console.error('Error fetching memos:', error);
+      memoListDiv.innerHTML = `<div class="error">메모 로드 실패: ${error.message}</div>`;
     }
-
-    // 3️⃣ 서버로 token 저장
-    await fetch('/api/subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-
-    alert('알림 구독 완료!');
-  } catch (e) {
-    console.error(e);
-    alert('알림 구독 실패');
   }
-}
 
-  
-async function updateSubscriptionStatus() {
-  const res = await fetch('/api/subscription-status');
-  const { subscribed } = await res.json();
+  async function saveMemo() {
+    const content = memoInput.value.trim();
+    if (!content) return;
 
-  if (subscribed) {
-    subscribeBtn.textContent = '✅ 구독 완료';
-    subscribeBtn.disabled = true;
+    saveMemoBtn.disabled = true;
+    saveMemoBtn.textContent = '저장 중...';
+
+    try {
+      await apiFetch('/api/notes', {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+      memoInput.value = '';
+      await fetchMemos();
+    } catch (error) {
+      alert(`저장 실패: ${error.message}`);
+    } finally {
+      saveMemoBtn.disabled = false;
+      saveMemoBtn.textContent = '저장';
+    }
   }
-}
 
-  // --- Rendering ---
+  async function subscribeToPush() {
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('알림 권한이 거부되었습니다.');
+        return;
+      }
+
+      // VAPID_PUBLIC_KEY 변수 사용 (따옴표 처리된 값)
+      const token = await getToken(messaging, { vapidKey: VAPID_PUBLIC_KEY });
+
+      if (token) {
+        await apiFetch('/api/subscribe', {
+          method: 'POST',
+          body: JSON.stringify({ token }),
+        });
+        alert('알림 구독 완료!');
+        updateSubscriptionStatus();
+      } else {
+        alert('토큰을 가져오지 못했습니다.');
+      }
+    } catch (e) {
+      console.error('구독 에러:', e);
+      alert('알림 구독 중 오류가 발생했습니다.');
+    }
+  }
+
+  async function updateSubscriptionStatus() {
+    try {
+        const { subscribed } = await apiFetch('/api/subscription-status');
+        if (subscribed) {
+          subscribeBtn.textContent = '✅ 구독 완료';
+          subscribeBtn.disabled = true;
+        }
+    } catch (e) {
+        console.log("구독 상태 확인 실패");
+    }
+  }
+
   function renderMemos(memos) {
     if (memos.length === 0) {
       memoListDiv.innerHTML = '저장된 메모가 없습니다.';
@@ -228,70 +199,9 @@ async function updateSubscriptionStatus() {
     `).join('');
   }
 
-  // --- Utils ---
   function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
-  
-  function urlBase64ToUint8Array(base64String) {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
-  }
-
-async function verifyFirebaseToken(request, env) {
-  const authHeader = request.headers.get('Authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('Missing or invalid Authorization header');
-    return null;
-  }
-
-  const idToken = authHeader.substring(7);
-  
-  try {
-    const parts = idToken.split('.');
-    if (parts.length !== 3) {
-      console.log('Invalid token format');
-      return null;
-    }
-    
-    const payloadB64 = parts[1];
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
-    
-    const now = Math.floor(Date.now() / 1000);
-    
-    if (payload.exp < now) {
-      console.log('Token expired');
-      return null;
-    }
-    
-    if (payload.aud !== 'soaho-5b92f') {
-      console.log('Invalid audience');
-      return null;
-    }
-    
-    if (payload.iss !== 'https://securetoken.google.com/soaho-5b92f') {
-      console.log('Invalid issuer');
-      return null;
-    }
-    
-    return payload.sub || payload.user_id;
-    
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return null;
-  }
-}
-
-
-
-
 });
