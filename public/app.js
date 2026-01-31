@@ -1,3 +1,4 @@
+import { getMessaging, getToken } from "firebase/messaging";
 document.addEventListener('DOMContentLoaded', () => {
 
   // =================================================================
@@ -168,52 +169,53 @@ async function saveMemo() {
   }
 }
   
-  async function subscribeToPush() {
-    try {
-      console.log('1. Service Worker 확인 중...');
-      const registration = await navigator.serviceWorker.ready;
-      
-      console.log('2. 기존 구독 확인 중...');
-      let subscription = await registration.pushManager.getSubscription();
+import { getMessaging, getToken } from "firebase/messaging";
 
-      if (subscription) {
-        alert('이미 알림을 구독 중입니다.');
-        return;
-      }
-
-      console.log('3. 새 구독 생성 중...');
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      console.log('구독 생성 완료:', subscription);
-      
-      console.log('4. 서버로 전송 중...');
-      const result = await fetch('/api/subscribe', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ token }),
-});
-      console.log('서버 응답:', result);
-
-      alert('알림 구독이 완료되었습니다!');
-      subscribeBtn.textContent = '✅ 구독 완료';
-      subscribeBtn.disabled = true;
-
-    } catch (error) {
-      console.error('Push subscription failed:', error);
-      alert(`알림 구독에 실패했습니다: ${error.message}`);
+async function subscribeToPush() {
+  try {
+    // 1️⃣ 알림 권한
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      alert('알림 권한이 필요합니다.');
+      return;
     }
+
+    // 2️⃣ FCM token 발급
+    const messaging = getMessaging();
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_PUBLIC_KEY, // 🔥 Firebase 콘솔에서 받은 키
+    });
+
+    if (!token) {
+      alert('토큰 발급 실패');
+      return;
+    }
+
+    // 3️⃣ 서버로 token 저장
+    await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+
+    alert('알림 구독 완료!');
+  } catch (e) {
+    console.error(e);
+    alert('알림 구독 실패');
   }
+}
+
   
-  async function updateSubscriptionStatus() {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    if (subscription) {
-      subscribeBtn.textContent = '✅ 구독 완료';
-      subscribeBtn.disabled = true;
-    }
+async function updateSubscriptionStatus() {
+  const res = await fetch('/api/subscription-status');
+  const { subscribed } = await res.json();
+
+  if (subscribed) {
+    subscribeBtn.textContent = '✅ 구독 완료';
+    subscribeBtn.disabled = true;
   }
+}
+
   // --- Rendering ---
   function renderMemos(memos) {
     if (memos.length === 0) {
