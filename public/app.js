@@ -1,5 +1,16 @@
-// firebase-auth.js 임포트 부분에 'onAuthStateChanged'가 있는지 꼭 확인!
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAAqorZd78VjeaS7LxA3DykrR-zjb2jf6E",
+  authDomain: "soaho-5b92f.firebaseapp.com",
+  projectId: "soaho-5b92f",
+  storageBucket: "soaho-5b92f.firebasestorage.app",
+  messagingSenderId: "655094826656",
+  appId: "1:655094826656:web:503233d31c9ca8c2f5abc5"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app); // ✅ 여기서 정의된 auth는 아래 어디서든 쓸 수 있습니다.
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- Global State ---
