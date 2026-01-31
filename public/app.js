@@ -142,28 +142,31 @@ async function fetchMemos() {
   }
 }
 
-  async function saveMemo() {
-    const content = memoInput.value.trim();
-    if (!content) return;
+async function saveMemo() {
+  const content = memoInput.value.trim();
+  if (!content) return;
 
-    saveMemoBtn.disabled = true;
-    saveMemoBtn.textContent = '저장 중...';
+  saveMemoBtn.disabled = true;
+  saveMemoBtn.textContent = '저장 중...';
 
-    try {
-      await apiFetch('/api/notes', {
-        method: 'POST',
-        body: JSON.stringify({ content })
-      });
-      memoInput.value = '';
-      // No need to manually refresh, Supabase trigger will handle it
-    } catch (error) {
-      console.error('Error saving memo:', error);
-      alert(`저장 실패: ${error.message}`);
-    } finally {
-      saveMemoBtn.disabled = false;
-      saveMemoBtn.textContent = '저장';
-    }
+  try {
+    await apiFetch('/api/notes', {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    });
+    memoInput.value = '';
+    
+    // 메모 저장 후 즉시 목록 새로고침 추가!
+    await fetchMemos();
+    
+  } catch (error) {
+    console.error('Error saving memo:', error);
+    alert(`저장 실패: ${error.message}`);
+  } finally {
+    saveMemoBtn.disabled = false;
+    saveMemoBtn.textContent = '저장';
   }
+}
   
   async function subscribeToPush() {
     try {
