@@ -13,7 +13,7 @@ const firebaseConfig = {
   appId: "1:655094826656:web:503233d31c9ca8c2f5abc5",
 };
 
-const VAPID_PUBLIC_KEY = "BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc";
+const VAPID_PUBLIC_KEY = "BM_3uYAByURiJYw4OTL71aBYmXfngKF-LTM86hTsdFtxDdQWZjXFNXTU4Ef2tCvIlyjNE-i9ufMjRN8b6U3E4J0";
 const WORKER_URL = "https://cloud-memo-worker.seliscos.workers.dev";
 
 // --- Firebase Initialization ---
