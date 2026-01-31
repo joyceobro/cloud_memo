@@ -99,26 +99,26 @@ document.addEventListener('DOMContentLoaded', () => {
   saveMemoBtn.addEventListener('click', saveMemo);
 
   // --- API Functions ---
-  async function apiFetch(path, options = {}) {
-    if (!idToken) throw new Error("Authentication token not available.");
-
-    const defaultHeaders = {
-      'Authorization': `Bearer ${idToken}`,
-      'Content-Type': 'application/json'
-    };
-
-    const response = await fetch(`${WORKER_URL}${path}`, {
-      ...options,
-      headers: { ...defaultHeaders, ...options.headers }
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-    }
-    return response.json();
+async function apiFetch(path, options = {}) {
+  if (!idToken) throw new Error("Authentication token not available.");
+  
+  const defaultHeaders = {
+    'Authorization': `Bearer ${idToken}`,
+    'Content-Type': 'application/json'
+  };
+  
+  const response = await fetch(`${WORKER_URL}${path}`, {  // 여기 수정!
+    ...options,
+    headers: { ...defaultHeaders, ...options.headers }
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
   }
-
+  
+  return response.json();
+}
   async function fetchMemos() {
     try {
       memoListDiv.innerHTML = '로딩 중...';
