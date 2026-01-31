@@ -2,6 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging.js";
+import { onMessage } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging.js";
 
 // --- Configuration ---
 const firebaseConfig = {
@@ -21,6 +22,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const messaging = getMessaging(app);
 const googleProvider = new GoogleAuthProvider();
+
+onMessage(messaging, (payload) => {
+  console.log('포그라운드 메시지:', payload);
+  new Notification(payload.notification.title, {
+    body: payload.notification.body,
+    icon: "/icons/icon-192x192.png"
+  });
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   // --- Global State ---
