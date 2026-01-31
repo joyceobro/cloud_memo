@@ -169,8 +169,6 @@ async function saveMemo() {
   }
 }
   
-import { getMessaging, getToken } from "firebase/messaging";
-
 async function subscribeToPush() {
   try {
     // 1️⃣ 알림 권한
@@ -183,7 +181,7 @@ async function subscribeToPush() {
     // 2️⃣ FCM token 발급
     const messaging = getMessaging();
     const token = await getToken(messaging, {
-      vapidKey: VAPID_PUBLIC_KEY, // 🔥 Firebase 콘솔에서 받은 키
+      vapidKey: BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc, // 🔥 Firebase 콘솔에서 받은 키
     });
 
     if (!token) {
