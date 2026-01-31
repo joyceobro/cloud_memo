@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   
   const VAPID_PUBLIC_KEY = "BAEad0BisKYLfcAgomxPGAZxdx4eqNsjI54rVO7pEOP_14_drJnPybDnXWVAkxziFIelTAVnFHnUqxVhKQBOJNc";
-  const WORKER_URL = "https://cloud-memo-worker.seliscos.workers.dev/"; // 본인의 Worker URL로 변경
+  const WORKER_URL = "https://cloud-memo-worker.seliscos.workers.dev"; // 본인의 Worker URL로 변경
   // =================================================================
 
 
