@@ -125,33 +125,53 @@ async function saveSubscription(request, userId, env) {
 
 // --- Push Notification ---
 async function sendPushNotification(request, env) {
-  const { record } = await request.json();
-  const { content, user_id } = record;
-  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
-  
-  // fetch 함수 호출 수정 (괄호 추가)
-  const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-    },
-  });
-  
-  const subs = await subResponse.json();
-  if (!subs || !subs.length) {
-    return jsonResponse({ message: 'No subscriptions found.' });
+  try {
+    const payload = await request.json();
+    console.log('Webhook payload:', payload);
+    
+    // Supabase webhook 형식 처리
+    const { record } = payload;
+    
+    if (!record || !record.content || !record.user_id) {
+      console.error('Invalid payload:', payload);
+      return jsonResponse({ error: 'Invalid payload structure' }, 400);
+    }
+    
+    const { content, user_id } = record;
+    const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+
+    console.log(`Sending push for user: ${user_id}`);
+
+    const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    });
+    
+    const subs = await subResponse.json();
+    console.log('Found subscriptions:', subs.length);
+    
+    if (!subs || !subs.length) {
+      return jsonResponse({ message: 'No subscriptions found.' });
+    }
+    
+    const notificationPayload = JSON.stringify({
+      title: '새로운 메모!',
+      body: content.substring(0, 100),
+      url: '/',
+    });
+
+    const promises = subs.map(s => triggerPush(s.subscription, notificationPayload, env));
+    await Promise.allSettled(promises);
+    
+    console.log(`Push sent to ${subs.length} subscribers`);
+    return jsonResponse({ success: true, sentTo: subs.length });
+    
+  } catch (error) {
+    console.error('sendPushNotification error:', error);
+    return jsonResponse({ error: error.message }, 500);
   }
-  
-  const notificationPayload = JSON.stringify({
-    title: '새로운 메모!',
-    body: content.substring(0, 100),
-    url: '/',
-  });
-  
-  const promises = subs.map(s => triggerPush(s.subscription, notificationPayload, env));
-  await Promise.allSettled(promises);
-  
-  return jsonResponse({ success: true, sentTo: subs.length });
 }
 
 async function triggerPush(subscription, payload, env) {

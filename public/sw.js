@@ -5,32 +5,39 @@ self.addEventListener("push", (event) => {
     console.error("Push event but no data");
     return;
   }
+
+  console.log("Push received");
+
   const data = event.data.json();
   const title = data.title || "Cloud Memo";
+
   const options = {
     body: data.body,
-    icon: "icons/icon-192x192.png", // 알림에 표시할 아이콘
-    badge: "icons/icon-96x96.png", // 안드로이드에서 사용되는 뱃지
+    icon: "/icons/icon-192x192.png",
+    badge: "/icons/icon-96x96.png",
     data: {
-      url: data.url || "/", // 알림 클릭 시 이동할 URL
+      url: data.url || "/",
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  const showNotificationPromise =
+    self.registration.showNotification(title, options);
 
-  // 열려있는 탭에 메시지를 보내서 실시간으로 내용을 업데이트 하도록 함
-  event.waitUntil(
+  const notifyClientsPromise =
     self.clients.matchAll({
       type: "window",
-      includeUncontrolled: true
-    }).then(clientList => {
-      clientList.forEach(client => {
-        // 'new-memo-received' 메시지를 보내 app.js가 목록을 새로고침하게 만듬
-        client.postMessage({ type: 'new-memo-received' });
+      includeUncontrolled: true,
+    }).then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({ type: "new-memo-received" });
       });
-    })
+    });
+
+  event.waitUntil(
+    Promise.all([showNotificationPromise, notifyClientsPromise])
   );
 });
+
 
 self.addEventListener("notificationclick", (event) => {
   // 알림창 닫기
