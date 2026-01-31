@@ -48,12 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMoreBtn = document.getElementById('load-more-btn');
   }
 
-  // 초기 알림 권한 체크
-  if (Notification.permission === 'granted') {
-    subscribeBtn.disabled = true;
-    subscribeBtn.innerText = '🔔 알림 구독 중';
-    subscribeBtn.style.backgroundColor = '#ccc';
-  }
 
   // 4. 인증 상태 감시
   onAuthStateChanged(auth, async (user) => {
@@ -74,7 +68,13 @@ document.addEventListener('DOMContentLoaded', () => {
       loginBtn.style.display = 'block';
       appContentDiv.style.display = 'none';
       memoListDiv.innerHTML = '';
-      loadMoreBtn.style.display = 'none';
+     
+      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+
+      // ✅ 추가: 로그아웃 시 버튼을 초기 상태로 되돌립니다.
+      subscribeBtn.disabled = false;
+      subscribeBtn.innerText = '🔔 알림 받기';
+      subscribeBtn.style.backgroundColor = '';
     }
   });
 
