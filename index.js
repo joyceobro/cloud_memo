@@ -105,28 +105,43 @@ async function saveNote(request, userId, env) {
 }
 
 async function saveSubscription(request, userId, env) {
-  const { token } = await request.json(); // 🔥 명확히 token
-  const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
+  try {
+    const { token } = await request.json();
+    const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
 
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/subscriptions`,
-    {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates', // 중복 방지
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        subscription: token, // ✅ FCM token 저장
-      }),
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions`,
+      {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_SERVICE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+          // 1. return=representation을 추가해야 생성된 데이터를 받아올 수 있습니다.
+          // 2. resolution=merge-duplicates는 upsert 처럼 작동하게 합니다.
+          'Prefer': 'return=representation,resolution=merge-duplicates', 
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          subscription: token, // 테이블 컬럼명이 'subscription'이 맞는지 꼭 확인!
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Supabase 저장 실패:", errorText);
+      return jsonResponse({ success: false, error: errorText }, 500);
     }
-  );
 
-  const data = await response.json();
-  return jsonResponse({ success: true, token: data[0] });
+    const data = await response.json();
+    // 데이터가 성공적으로 들어갔다면 첫 번째 아이템 반환
+    return jsonResponse({ success: true, data: data[0] || { token } });
+
+  } catch (error) {
+    console.error("saveSubscription 함수 내 에러:", error.message);
+    return jsonResponse({ success: false, error: error.message }, 500);
+  }
 }
 
 // --- Push Notification ---
