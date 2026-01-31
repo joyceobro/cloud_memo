@@ -48,6 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const memoListDiv = document.getElementById('memo-list');
   const subscribeBtn = document.getElementById('subscribe-btn');
 
+  // ✅ 페이지 로드 시 알림 권한 상태 체크
+  if (Notification.permission === 'granted') {
+    subscribeBtn.disabled = true;
+    subscribeBtn.innerText = '🔔 알림 구독 중';
+    subscribeBtn.style.backgroundColor = '#ccc';
+  }
+
   // --- Service Worker Registration ---
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/firebase-messaging-sw.js') // sw.js 파일이 실제 경로에 있어야 함
@@ -196,6 +203,9 @@ async function subscribeToPush() {
         method: 'POST',
         body: JSON.stringify({ token: token }) // 'token'이라는 키로 전송
       });
+     // ✅ 성공 시 버튼 상태 변경
+      subscribeBtn.disabled = true;
+      subscribeBtn.innerText = '🔔 알림 구독 완료';
       alert('알림 구독 완료!');
     }
   } catch (e) {

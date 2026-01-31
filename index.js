@@ -159,7 +159,7 @@ async function sendPushNotification(request, env) {
 
     // 1️⃣ token 조회
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?select=subscription`,
       {
         headers: {
           apikey: SUPABASE_SERVICE_KEY,
@@ -169,7 +169,7 @@ async function sendPushNotification(request, env) {
     );
 
     const rows = await res.json();
-    const tokens = rows.map(r => r.subscription);
+    const tokens = [...new Set(rows.map(r => r.subscription))];
 
     if (!tokens.length) {
       return jsonResponse({ message: 'No tokens' });
@@ -178,7 +178,7 @@ async function sendPushNotification(request, env) {
     // 2️⃣ FCM 전송
     await sendFcm(tokens, {
       title: '새로운 메모!',
-      body: content.slice(0, 100),
+      body: content.length > 50 ? content.slice(0, 50) + '...' : content,
     }, env);
 
     return jsonResponse({ success: true, sentTo: tokens.length });
@@ -212,7 +212,75 @@ async function sendFcm(tokens, notification, env) {
   }
 }
 
+async function getFirebaseAccessToken(env) {
+  const { FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, FIREBASE_PROJECT_ID } = env;
 
+  // 1. 키 정제 (모든 불순물 제거)
+  const cleanKey = FIREBASE_PRIVATE_KEY
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '')    // 역슬래시+n 제거
+    .replace(/\n/g, '')     // 실제 줄바꿈 제거
+    .replace(/\s+/g, '')    // 공백 제거
+    .replace(/["']/g, '')   // 따옴표 제거
+    .trim();
+
+  // 2. JWT 헤더 및 페이로드 설정
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: FIREBASE_CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now,
+  };
+
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const encodedPayload = btoa(JSON.stringify(payload)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+  // 3. 서명 (Crypto API)
+  const binaryKeyString = atob(cleanKey);
+  const binaryKey = new Uint8Array(binaryKeyString.length);
+  for (let i = 0; i < binaryKeyString.length; i++) {
+    binaryKey[i] = binaryKeyString.charCodeAt(i);
+  }
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryKey.buffer,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+  const jwt = `${unsignedToken}.${encodedSignature}`;
+
+  // 4. 구글 토큰 서버에 요청
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+  });
+
+  const data = await res.json();
+  
+  if (!res.ok) {
+    throw new Error(`Google Auth Failed: ${JSON.stringify(data)}`);
+  }
+
+  return data.access_token;
+}
 
 // --- Auth Verification ---
 async function verifyFirebaseToken(request, env) {
