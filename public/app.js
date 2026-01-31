@@ -167,43 +167,49 @@ async function fetchMemos() {
   
   async function subscribeToPush() {
     try {
-        const registration = await navigator.serviceWorker.ready;
-        let subscription = await registration.pushManager.getSubscription();
+      console.log('1. Service Worker 확인 중...');
+      const registration = await navigator.serviceWorker.ready;
+      
+      console.log('2. 기존 구독 확인 중...');
+      let subscription = await registration.pushManager.getSubscription();
 
-        if (subscription) {
-            alert('이미 알림을 구독 중입니다.');
-            return;
-        }
+      if (subscription) {
+        alert('이미 알림을 구독 중입니다.');
+        return;
+      }
 
-        subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-        });
-        
-        await apiFetch('/api/subscribe', {
-            method: 'POST',
-            body: JSON.stringify(subscription)
-        });
+      console.log('3. 새 구독 생성 중...');
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+      console.log('구독 생성 완료:', subscription);
+      
+      console.log('4. 서버로 전송 중...');
+      const result = await apiFetch('/api/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(subscription)
+      });
+      console.log('서버 응답:', result);
 
-        alert('알림 구독이 완료되었습니다!');
-        subscribeBtn.textContent = '✅ 구독 완료';
-        subscribeBtn.disabled = true;
+      alert('알림 구독이 완료되었습니다!');
+      subscribeBtn.textContent = '✅ 구독 완료';
+      subscribeBtn.disabled = true;
 
     } catch (error) {
-        console.error('Push subscription failed:', error);
-        alert(`알림 구독에 실패했습니다: ${error.message}`);
+      console.error('Push subscription failed:', error);
+      alert(`알림 구독에 실패했습니다: ${error.message}`);
     }
   }
   
   async function updateSubscriptionStatus() {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-          subscribeBtn.textContent = '✅ 구독 완료';
-          subscribeBtn.disabled = true;
-      }
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      subscribeBtn.textContent = '✅ 구독 완료';
+      subscribeBtn.disabled = true;
+    }
   }
-
   // --- Rendering ---
   function renderMemos(memos) {
     if (memos.length === 0) {

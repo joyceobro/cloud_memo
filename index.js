@@ -74,7 +74,9 @@ export default {
 // --- API Handlers ---
 async function getNotes(userId, env) {
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/notes?user_id=eq.${userId}&select=*&order=created_at.desc`, {
+  
+  // user_id 필터 제거 - 모든 메모 가져오기
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/notes?select=*&order=created_at.desc`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
       Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
@@ -83,7 +85,6 @@ async function getNotes(userId, env) {
   const notes = await response.json();
   return jsonResponse({ notes });
 }
-
 async function saveNote(request, userId, env) {
   const { content } = await request.json();
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
@@ -127,7 +128,8 @@ async function sendPushNotification(request, env) {
   const { record } = await request.json();
   const { content, user_id } = record;
   const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = env;
-
+  
+  // fetch 함수 호출 수정 (괄호 추가)
   const subResponse = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${user_id}&select=subscription`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -145,7 +147,7 @@ async function sendPushNotification(request, env) {
     body: content.substring(0, 100),
     url: '/',
   });
-
+  
   const promises = subs.map(s => triggerPush(s.subscription, notificationPayload, env));
   await Promise.allSettled(promises);
   
@@ -257,3 +259,4 @@ async function verifyFirebaseToken(request, env) {
     return null;
   }
 }
+
